@@ -4,6 +4,7 @@ from discord.ext import commands
 from dotenv import load_dotenv
 import aiohttp
 import asyncio
+from datetime import datetime, timezone
 
 # Cargar variables de entorno
 load_dotenv()
