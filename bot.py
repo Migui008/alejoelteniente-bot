@@ -136,6 +136,13 @@ async def twitch_status(ctx):
             else:
                 await ctx.send(f"❌ {TWITCH_USERNAME} no está en directo ahora mismo.")
 
+@bot.command(name="status")
+async def status(ctx):
+    if current_channel_id:
+        canal = bot.get_channel(current_channel_id)
+        await ctx.send(f"📡 Canal actual de avisos: {canal.mention}")
+    else:
+        await ctx.send("❌ No hay canal configurado.")
 
 # Iniciar el bot
 bot.run(TOKEN)
