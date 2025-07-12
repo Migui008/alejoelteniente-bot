@@ -92,5 +92,40 @@ async def change_channel(ctx, channel: discord.TextChannel):
     current_channel_id = channel.id
     await ctx.send(f"📢 Canal de avisos configurado a {channel.mention}")
 
+@bot.command(name="twitch_status")
+async def twitch_status(ctx):
+    token = await get_twitch_token()
+    url = "https://api.twitch.tv/helix/streams"
+    headers = {
+        "Client-ID": TWITCH_CLIENT_ID,
+        "Authorization": f"Bearer {token}"
+    }
+    params = {
+        "user_login": TWITCH_USERNAME
+    }
+
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url, headers=headers, params=params) as resp:
+            data = await resp.json()
+            stream_data = data.get("data", [])
+            
+            if stream_data:
+                # Está en directo
+                start_time = stream_data[0]["started_at"]
+                # Calcular duración del directo
+                from datetime import datetime, timezone
+
+                started_dt = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
+                now_dt = datetime.now(timezone.utc)
+                duration = now_dt - started_dt
+
+                hours, remainder = divmod(int(duration.total_seconds()), 3600)
+                minutes, seconds = divmod(remainder, 60)
+
+                await ctx.send(f"✅ {TWITCH_USERNAME} está en directo desde hace {hours}h {minutes}m {seconds}s.\nhttps://twitch.tv/{TWITCH_USERNAME}")
+            else:
+                await ctx.send(f"❌ {TWITCH_USERNAME} no está en directo ahora mismo.")
+
+
 # Iniciar el bot
 bot.run(TOKEN)
