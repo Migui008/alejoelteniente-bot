@@ -51,27 +51,35 @@ async def is_stream_live(session, token):
 
 # Bucle de comprobación de Twitch
 async def check_twitch_loop():
-    global was_live
-
-    token = await get_twitch_token()
     await bot.wait_until_ready()
+    token = await get_twitch_token()
+    headers = {
+        "Client-ID": TWITCH_CLIENT_ID,
+        "Authorization": f"Bearer {token}"
+    }
+    last_live = False
 
-    async with aiohttp.ClientSession() as session:
-        while not bot.is_closed():
-            try:
-                is_live = await is_stream_live(session, token)
-                if is_live and not was_live:
-                    if current_channel_id:
-                        channel = bot.get_channel(current_channel_id)
-                        if channel:
-                            await channel.send(f"🎥 ¡{TWITCH_USERNAME} está en directo! https://twitch.tv/{TWITCH_USERNAME}")
-                    was_live = True
-                elif not is_live and was_live:
-                    was_live = False
-                await asyncio.sleep(check_interval)
-            except Exception as e:
-                print(f"Error al comprobar Twitch: {e}")
-                await asyncio.sleep(check_interval)
+    while not bot.is_closed():
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                "https://api.twitch.tv/helix/streams",
+                headers=headers,
+                params={"user_login": TWITCH_USERNAME}
+            ) as resp:
+                data = await resp.json()
+                stream = data.get("data", [])
+
+                is_live = len(stream) > 0
+
+                if is_live and not last_live:
+                    # Entró en directo ahora
+                    channel = bot.get_channel(current_channel_id)
+                    if channel:
+                        await channel.send(f"🔴 {TWITCH_USERNAME} está en directo ahora: https://twitch.tv/{TWITCH_USERNAME}")
+                last_live = is_live
+
+        await asyncio.sleep(60)  # comprueba cada 60 segundos
+
 
 # Subclase personalizada para el bot con setup_hook
 class TwitchBot(commands.Bot):
@@ -84,7 +92,8 @@ bot = TwitchBot(command_prefix="&", intents=intents)
 # Evento cuando el bot está listo
 @bot.event
 async def on_ready():
-    print(f"Bot conectado como {bot.user}")
+    print(f"✅ Bot conectado como {bot.user}")
+    bot.loop.create_task(check_twitch_loop())  # 👈 Esto inicia el loop automático
 
 # Comando para cambiar el canal de avisos
 @bot.command(name="change_channel")
