@@ -1,91 +1,34 @@
 import os
-import json
 from dotenv import load_dotenv
 import discord
-import asyncio
-from twitchAPI.twitch import Twitch
+from discord.ext import commands
 
-# Cargar variables de entorno
+# Carga variables del .env
 load_dotenv()
+TOKEN = os.getenv("DISCORD_TOKEN")
+TWITCH_CLIENT_ID = os.getenv("TWITCH_CLIENT_ID")
+TWITCH_CLIENT_SECRET = os.getenv("TWITCH_CLIENT_SECRET")
+TWITCH_USERNAME = os.getenv("TWITCH_USERNAME")
 
-DISCORD_TOKEN = os.getenv('DISCORD_TOKEN')
-TWITCH_CLIENT_ID = os.getenv('TWITCH_CLIENT_ID')
-TWITCH_CLIENT_SECRET = os.getenv('TWITCH_CLIENT_SECRET')
-TWITCH_USERNAME = os.getenv('TWITCH_USERNAME')
-
+# Configura los intents
 intents = discord.Intents.default()
-intents.message_content = True  # Necesario para leer mensajes
-client = discord.Client(intents=intents)
+intents.message_content = True  # Para poder leer mensajes
 
-# Archivo donde guardamos la configuración de canales por servidor
-CONFIG_FILE = 'canales.json'
+bot = commands.Bot(command_prefix="&", intents=intents)
 
-def cargar_config():
-    try:
-        with open(CONFIG_FILE, 'r') as f:
-            return json.load(f)
-    except FileNotFoundError:
-        return {}
-
-def guardar_config(config):
-    with open(CONFIG_FILE, 'w') as f:
-        json.dump(config, f, indent=4)
-
-config = cargar_config()
-
-was_live = False
-
-async def check_stream():
-    global was_live
-    twitch = await Twitch(TWITCH_CLIENT_ID, TWITCH_CLIENT_SECRET)
-    user_data = await twitch.get_users(logins=[TWITCH_USERNAME])
-    user_id = user_data['data'][0]['id']
-
-    while True:
-        stream = await twitch.get_streams(user_id=[user_id])
-
-        if stream['data']:
-            if not was_live:
-                stream_title = stream['data'][0]['title']
-                url = f'https://twitch.tv/{TWITCH_USERNAME}'
-
-                for guild in client.guilds:
-                    guild_id_str = str(guild.id)
-                    if guild_id_str in config:
-                        channel_id = config[guild_id_str]
-                        channel = client.get_channel(channel_id)
-                        if channel:
-                            await channel.send(f'🎥 **{TWITCH_USERNAME}** está EN DIRECTO!\n**{stream_title}**\n🔴 {url}')
-
-                was_live = True
-        else:
-            was_live = False
-
-        await asyncio.sleep(60)
-
-@client.event
+@bot.event
 async def on_ready():
-    print(f'✅ Bot conectado como {client.user}')
-    client.loop.create_task(check_stream())
+    print(f"Bot conectado como {bot.user}")
 
-@client.event
-async def on_message(message):
-    if message.author == client.user:
-        return
+# Comando para cambiar canal Twitch donde se informa (ejemplo)
+current_channel_id = None
 
-    if message.content.startswith('&change_channel'):
-        # Solo admins pueden usar el comando
-        if not message.author.guild_permissions.administrator:
-            await message.channel.send('❌ Solo administradores pueden usar este comando.')
-            return
+@bot.command(name="change_channel")
+async def change_channel(ctx, channel: discord.TextChannel):
+    global current_channel_id
+    current_channel_id = channel.id
+    await ctx.send(f"Canal cambiado a {channel.mention}")
 
-        # Guardamos el canal actual para el servidor
-        guild_id_str = str(message.guild.id)
-        channel_id = message.channel.id
+# Aquí pondrías la lógica para Twitch y avisar cuando empiece directo
 
-        config[guild_id_str] = channel_id
-        guardar_config(config)
-
-        await message.channel.send(f'✅ Canal configurado correctamente para avisos en este servidor: {message.channel.mention}')
-
-client.run(DISCORD_TOKEN)
+bot.run(TOKEN)
