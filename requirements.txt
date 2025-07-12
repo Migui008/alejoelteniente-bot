@@ -1,3 +1,4 @@
 discord.py
 twitchAPI
 python-dotenv
+aiohttp
