@@ -1,41 +1,27 @@
 import os
-from dotenv import load_dotenv
 import discord
 from discord.ext import commands
+from dotenv import load_dotenv
+import aiohttp
+import asyncio
 
-# Carga variables del .env
+# Cargar variables de entorno
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
 TWITCH_CLIENT_ID = os.getenv("TWITCH_CLIENT_ID")
 TWITCH_CLIENT_SECRET = os.getenv("TWITCH_CLIENT_SECRET")
 TWITCH_USERNAME = os.getenv("TWITCH_USERNAME")
 
-# Configura los intents
+# Configurar intents
 intents = discord.Intents.default()
-intents.message_content = True  # Para poder leer mensajes
+intents.message_content = True  # Necesario para leer mensajes
 
-bot = commands.Bot(command_prefix="&", intents=intents)
-
-@bot.event
-async def on_ready():
-    print(f"Bot conectado como {bot.user}")
-
-# Comando para cambiar canal Twitch donde se informa (ejemplo)
+# Estado global del canal y stream
 current_channel_id = None
+was_live = False
+check_interval = 60  # Intervalo en segundos
 
-@bot.command(name="change_channel")
-async def change_channel(ctx, channel: discord.TextChannel):
-    global current_channel_id
-    current_channel_id = channel.id
-    await ctx.send(f"Canal cambiado a {channel.mention}")
-
-# Aquí pondrías la lógica para Twitch y avisar cuando empiece directo
-import aiohttp
-import asyncio
-
-was_live = False  # Estado anterior
-check_interval = 60  # segundos
-
+# Función para obtener token de Twitch
 async def get_twitch_token():
     url = "https://id.twitch.tv/oauth2/token"
     params = {
@@ -43,12 +29,12 @@ async def get_twitch_token():
         "client_secret": TWITCH_CLIENT_SECRET,
         "grant_type": "client_credentials"
     }
-
     async with aiohttp.ClientSession() as session:
         async with session.post(url, params=params) as resp:
             data = await resp.json()
             return data["access_token"]
 
+# Comprobar si el canal está en directo
 async def is_stream_live(session, token):
     url = "https://api.twitch.tv/helix/streams"
     headers = {
@@ -58,27 +44,26 @@ async def is_stream_live(session, token):
     params = {
         "user_login": TWITCH_USERNAME
     }
-
     async with session.get(url, headers=headers, params=params) as resp:
         data = await resp.json()
-        return bool(data["data"])  # True si está en directo
+        return bool(data["data"])
 
+# Bucle de comprobación de Twitch
 async def check_twitch_loop():
     global was_live
 
     token = await get_twitch_token()
     await bot.wait_until_ready()
-    
+
     async with aiohttp.ClientSession() as session:
         while not bot.is_closed():
             try:
                 is_live = await is_stream_live(session, token)
                 if is_live and not was_live:
-                    # Solo anuncia cuando pasa de offline a online
                     if current_channel_id:
                         channel = bot.get_channel(current_channel_id)
                         if channel:
-                            await channel.send(f"🎥 ¡{TWITCH_USERNAME} acaba de empezar directo en https://twitch.tv/{TWITCH_USERNAME}!")
+                            await channel.send(f"🎥 ¡{TWITCH_USERNAME} está en directo! https://twitch.tv/{TWITCH_USERNAME}")
                     was_live = True
                 elif not is_live and was_live:
                     was_live = False
@@ -87,5 +72,25 @@ async def check_twitch_loop():
                 print(f"Error al comprobar Twitch: {e}")
                 await asyncio.sleep(check_interval)
 
-bot.loop.create_task(check_twitch_loop())
+# Subclase personalizada para el bot con setup_hook
+class TwitchBot(commands.Bot):
+    async def setup_hook(self):
+        self.loop.create_task(check_twitch_loop())
+
+# Crear instancia del bot
+bot = TwitchBot(command_prefix="&", intents=intents)
+
+# Evento cuando el bot está listo
+@bot.event
+async def on_ready():
+    print(f"Bot conectado como {bot.user}")
+
+# Comando para cambiar el canal de avisos
+@bot.command(name="change_channel")
+async def change_channel(ctx, channel: discord.TextChannel):
+    global current_channel_id
+    current_channel_id = channel.id
+    await ctx.send(f"📢 Canal de avisos configurado a {channel.mention}")
+
+# Iniciar el bot
 bot.run(TOKEN)
