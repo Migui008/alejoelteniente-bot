@@ -73,9 +73,22 @@ async def check_twitch_loop():
 
                 if is_live and not last_live:
                     # Entró en directo ahora
-                    channel = bot.get_channel(current_channel_id)
+                    channel = None
+
+                    if current_channel_id:
+                        channel = bot.get_channel(current_channel_id)
+                    else:
+                        for guild in bot.guilds:
+                            for ch in guild.text_channels:
+                                if ch.name == "general":
+                                    channel = ch
+                                    break
+                            if channel:
+                                break
                     if channel:
                         await channel.send(f"🔴 {TWITCH_USERNAME} está en directo ahora: https://twitch.tv/{TWITCH_USERNAME}")
+                    else:
+                        print("❌ No se encontró ningún canal para enviar el aviso.")
                 last_live = is_live
 
         await asyncio.sleep(60)  # comprueba cada 60 segundos
