@@ -6,23 +6,21 @@ import aiohttp
 import asyncio
 from datetime import datetime, timezone
 
-# Cargar variables de entorno
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
 TWITCH_CLIENT_ID = os.getenv("TWITCH_CLIENT_ID")
 TWITCH_CLIENT_SECRET = os.getenv("TWITCH_CLIENT_SECRET")
 TWITCH_USERNAME = os.getenv("TWITCH_USERNAME")
 
-# Configurar intents
-intents = discord.Intents.default()
-intents.message_content = True  # Necesario para leer mensajes
 
-# Estado global del canal y stream
+intents = discord.Intents.default()
+intents.message_content = True 
+
 current_channel_id = None
 was_live = False
-check_interval = 60  # Intervalo en segundos
+check_interval = 60  
 
-# Función para obtener token de Twitch
+
 async def get_twitch_token():
     url = "https://id.twitch.tv/oauth2/token"
     params = {
@@ -35,7 +33,6 @@ async def get_twitch_token():
             data = await resp.json()
             return data["access_token"]
 
-# Comprobar si el canal está en directo
 async def is_stream_live(session, token):
     url = "https://api.twitch.tv/helix/streams"
     headers = {
@@ -49,7 +46,6 @@ async def is_stream_live(session, token):
         data = await resp.json()
         return bool(data["data"])
 
-# Bucle de comprobación de Twitch
 async def check_twitch_loop():
     await bot.wait_until_ready()
     token = await get_twitch_token()
@@ -72,7 +68,6 @@ async def check_twitch_loop():
                 is_live = len(stream) > 0
 
                 if is_live and not last_live:
-                    # Entró en directo ahora
                     channel = None
 
                     if current_channel_id:
@@ -91,24 +86,20 @@ async def check_twitch_loop():
                         print("❌ No se encontró ningún canal para enviar el aviso.")
                 last_live = is_live
 
-        await asyncio.sleep(60)  # comprueba cada 60 segundos
+        await asyncio.sleep(60) 
 
 
-# Subclase personalizada para el bot con setup_hook
 class TwitchBot(commands.Bot):
     async def setup_hook(self):
         self.loop.create_task(check_twitch_loop())
 
-# Crear instancia del bot
 bot = TwitchBot(command_prefix="&", intents=intents)
 
-# Evento cuando el bot está listo
 @bot.event
 async def on_ready():
     print(f"✅ Bot conectado como {bot.user}")
-    bot.loop.create_task(check_twitch_loop())  # 👈 Esto inicia el loop automático
+    bot.loop.create_task(check_twitch_loop()) 
 
-# Comando para cambiar el canal de avisos
 @bot.command(name="change_channel")
 async def change_channel(ctx, channel: discord.TextChannel):
     global current_channel_id
@@ -133,9 +124,7 @@ async def twitch_status(ctx):
             stream_data = data.get("data", [])
             
             if stream_data:
-                # Está en directo
                 start_time = stream_data[0]["started_at"]
-                # Calcular duración del directo
                 from datetime import datetime, timezone
 
                 started_dt = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
@@ -157,5 +146,4 @@ async def status(ctx):
     else:
         await ctx.send("❌ No hay canal configurado.")
 
-# Iniciar el bot
 bot.run(TOKEN)
