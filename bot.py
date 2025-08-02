@@ -97,8 +97,7 @@ bot = TwitchBot(command_prefix="&", intents=intents)
 
 @bot.event
 async def on_ready():
-    print(f"✅ Bot conectado como {bot.user}")
-    bot.loop.create_task(check_twitch_loop()) 
+    print(f"✅ Bot conectado como {bot.user}") 
 
 @bot.command(name="change_channel")
 async def change_channel(ctx, channel: discord.TextChannel):
@@ -147,3 +146,4 @@ async def status(ctx):
         await ctx.send("❌ No hay canal configurado.")
 
 bot.run(TOKEN)
+
